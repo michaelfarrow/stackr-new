@@ -1,0 +1,158 @@
+#!/usr/bin/env node
+require('app-module-path').addPath(__dirname)
+var program = require('lib/program')
+
+var terraform = require('lib/terraform')('worker')
+var keyFingerprint = require('lib/key')
+var commands = require('lib/commands')
+var async = require('async')
+var _ = require('lodash')
+var fs = require('fs-extra')
+var yaml = require('js-yaml')
+
+
+program
+  .option('-s, --stack <stack>', 'stack name')
+  .option('-n, --count [n]', 'number of workers', parseInt)
+  .option('-l, --loadbalancer', 'create load balancer')
+  .parse(process.argv)
+
+program.count = program.count === undefined ? 1 : program.count
+program.loadbalancer = program.loadbalancer === undefined ? false : program.loadbalancer
+var token = require('lib/digitalocean').token()
+
+var stackDir = 'stacks/' + program.stack
+var composeFile = stackDir + '/compose.yml'
+var stackCompiledDir = '.stackr/stacks/' + program.stack
+var stackCompiledComposeFile = stackCompiledDir + '/compose.yml'
+
+var clearCompiledDir = function(callback) {
+  async.waterfall([
+    async.apply(fs.pathExists, stackCompiledDir),
+    function(exists, callback) {
+      if(!exists) return callback(null)
+      fs.remove(stackCompiledDir, callback)
+    }
+  ], callback)
+}
+
+var asyncTryCatch = function() {
+  var applyArgs = program.argsToArray(arguments)
+  var applyFunction = applyArgs.shift()
+  return function() {
+    var args = program.argsToArray(arguments)
+    var callback = args.pop()
+    args = _.concat(args, applyArgs)
+    try {
+      var res = applyFunction.apply(null, args)
+      callback(null, res)
+    } catch (e) {
+      callback(e)
+    }
+  }
+}
+
+var ensureExists = function(type, path, callback) {
+  async.waterfall([
+    async.apply(fs.pathExists, path),
+    function(exists, callback) {
+      callback(exists ? null : new Error(type + ' "' + path + '" does not exist'))
+    }
+  ], callback)
+}
+
+var applyComposeDefaults = function(compose, callback) {
+  _.defaults(compose, {
+    version: '3',
+    networks: { traefik: { external: true } }
+  });
+  var hasTraefik = !!_.get(compose, 'networks.traefik')
+  if(compose.services) {
+    compose.services = _.mapValues(compose.services, function(service) {
+      _.defaults(service, {
+        networks: hasTraefik ? ['traefik'] : []
+      })
+      _.defaultsDeep(service, {
+        deploy: {
+          mode: 'global',
+          placement: {
+            constraints: []
+            // constraints: [
+            //   'node.role == worker',
+            //   'node.labels.stack == ' + program.stack
+            // ]
+          },
+          update_config: {
+            failure_action: 'rollback'
+          },
+          restart_policy: {
+            condition: 'any'
+          }
+        }
+      })
+      var foundRole = false
+      var foundStack = false
+      service.deploy.placement.constraints = _.map(service.deploy.placement.constraints, function(constraint) {
+        constraint = constraint.trim()
+        if (!foundRole && /node\.role\s*==/.exec(constraint)) foundRole = true
+        if (!foundStack && /node\.labels.stack\s*==/.exec(constraint)) foundStack = true
+        return constraint
+      })
+      if(!foundRole) service.deploy.placement.constraints.push('node.role == worker')
+      if(!foundStack) service.deploy.placement.constraints.push('node.labels.stack == ' + program.stack)
+      return service
+    })
+  }
+  callback(null, compose)
+}
+
+var processComposeFile = function(callback) {
+  async.waterfall([
+    async.apply(fs.readFile, stackCompiledComposeFile, 'utf8'),
+    asyncTryCatch(yaml.safeLoad),
+    applyComposeDefaults,
+    asyncTryCatch(yaml.safeDump, { sortKeys: true }),
+    function(res, callback) {
+      fs.writeFile(stackCompiledComposeFile, res, 'utf8', callback)
+    }
+  ], callback)
+}
+
+async.series([
+  clearCompiledDir,
+  async.apply(ensureExists, 'stack directory', stackDir),
+  async.apply(ensureExists, 'stack compose file', composeFile),
+  async.apply(fs.copy, stackDir, stackCompiledDir),
+  processComposeFile,
+  function(callback) {
+    commands([
+      // ['terraform.apply', 'worker', {
+      //   state: '/state/worker-' + program.stack + '.tfstate',
+      //   var: [
+      //     'do_token=' + token,
+      //     'key_fingerprint=' + keyFingerprint,
+      //     'stack=' + program.stack,
+      //     'worker_count=' + program.count,
+      //     'load_balancer=' + (program.loadbalancer ? '1' : '0')
+      //   ]
+      // }],
+      // 'hosts.update',
+      // ['ansible', 'setup'],
+      // ['ansible', 'tag'],
+      // ['ansible', 'networking'],
+      // ['ansible', 'ssh'],
+      // ['ansible', 'docker'],
+      ['ansible', 'stacks', ['-e', 'deploy_stack=' + program.stack]],
+      // function(callback) {
+      //   console.log('here')
+      //   callback(new Error('test'))
+      // },
+      // function(callback) {
+      //   console.log('here 2')
+      //   callback(null)
+      // }
+    ], callback)
+  }
+], function(err) {
+  if (err) return program.exitWithError(err)
+})

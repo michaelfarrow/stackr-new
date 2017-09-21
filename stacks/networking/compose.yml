@@ -1,0 +1,23 @@
+services:
+  traefik:
+    image: traefik:1.3.7
+    networks:
+      - traefik
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "80:80"
+      - "8080:8080"
+    command: --docker --docker.swarmmode --docker.domain=traefik --docker.watch --web
+
+networks:
+  traefik:
+    external: true

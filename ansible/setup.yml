@@ -1,0 +1,26 @@
+---
+
+- hosts: node
+  remote_user: root
+  gather_facts: no
+
+  pre_tasks:
+
+    - name: wait for port 22 to become available
+      local_action: "wait_for port=22 host={{ inventory_hostname }}"
+
+    - name: install python2
+      raw: apt-get -y install python-simplejson
+      changed_when: false
+
+  tasks:
+
+    - name: install python pip
+      apt:
+        name: python-pip
+        state: latest
+        update_cache: yes
+
+    - name: install docker-py
+      pip:
+        name: docker-py

@@ -1,0 +1,103 @@
+---
+
+- name: ensure count-node-stack-label script
+  copy:
+    src: /scripts/count-node-stack-label
+    dest: /usr/bin/count-node-stack-label
+    mode: 0744
+
+- name: '{{ stack }} : capturing stack hosts'
+  command: 'docker node ls -f "role=worker" -q'
+  register: stack_node_ids
+  changed_when: false
+
+- name: '{{ stack }} : defining stack hosts fact'
+  set_fact:
+    stack_node_ids: '{{ stack_node_ids.stdout_lines }}'
+
+- name: '{{ stack }} : capturing stack host label count'
+  command: count-node-stack-label '{{ item }}' '{{ stack }}'
+  register: stack_node_label_stack_counts
+  with_items: '{{ stack_node_ids }}'
+  changed_when: false
+
+- name: '{{ stack }} : defining stack host label stack counts fact'
+  set_fact:
+    stack_node_label_stack_counts: "{{ stack_node_label_stack_counts.results | map(attribute='stdout') | map('int') | list | sum | int }}"
+
+- name: '{{ stack }} : ensure stacks directory'
+  file:
+    path: /root/stacks
+    state: directory
+
+- name: '{{ stack }} : set facts'
+  set_fact:
+    config: '{{ config | default({}) }}'
+
+- name: '{{ stack }} : ensure stack file'
+  template:
+    src: '{{ file }}'
+    dest: '/root/stacks/{{ stack }}.yml'
+  register: stack_file
+  when: '{{ stack_node_label_stack_counts | int }} != 0'
+
+- name: '{{ stack }} : capturing stacks'
+  command: docker stack ls --format {% raw %}"{{.Name}}"{% endraw %}
+  changed_when: false
+  register: docker_stacks
+
+- name: '{{ stack }} : deploy stacks'
+  command: 'docker stack deploy --with-registry-auth --compose-file /root/stacks/{{ stack }}.yml {{ stack }}'
+  when: >
+    stack_node_label_stack_counts | int != 0 and
+    state | default(config.state | default("present")) | lower != "absent" and
+    ( stack not in docker_stacks.stdout or stack_file.changed )
+  register: stack_deployed
+
+- name: '{{ stack }} : pausing'
+  pause:
+    seconds: 5
+  when: stack_deployed.changed
+
+- name: '{{ stack }} : capturing stack services'
+  command: docker stack services --format \{\{' '.Name' '\}\} '{{ stack }}'
+  changed_when: false
+  when: stack_deployed.changed
+  register: docker_stack_services
+
+- name: '{{ stack }} : checking service update status'
+  command: docker service inspect --format \{\{' '.UpdateStatus.State' '\}\} '{{ item }}'
+  with_items: '{{ docker_stack_services.stdout_lines }}'
+  register: docker_stack_service_status
+  until: docker_stack_service_status.stdout != "updating"
+  failed_when: false
+  retries: '{{ config.wait | default(300) }}'
+  delay: 1
+  when: stack_deployed.changed
+
+- name: '{{ stack }} : defining stack status fact'
+  set_fact:
+    docker_stack_service_errors: '{{ docker_stack_service_status.results | selectattr("stdout", "match", "^(paused|rollback_started|rollback_completed)$") | list | length }}'
+  when: stack_deployed.changed
+
+- name: '{{ stack }} : ensure re-deploy on next run'
+  file:
+    path: '/root/stacks/{{ stack }}.yml'
+    state: absent
+  when: stack_deployed.changed and docker_stack_service_errors != "0"
+
+- fail:
+    msg: deploy failed
+  when: stack_deployed.changed and docker_stack_service_errors != "0"
+
+- name: '{{ stack }} : removing stacks'
+  command: 'docker stack rm {{ stack }}'
+  when: >
+    stack_node_label_stack_counts | int == 0 and
+    stack in docker_stacks.stdout
+
+- name: '{{ stack }} : removing stack file'
+  file:
+    path: '/root/stacks/{{ stack }}.yml'
+    state: absent
+  when: stack_node_label_stack_counts | int == 0

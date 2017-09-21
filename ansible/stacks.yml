@@ -1,0 +1,57 @@
+---
+
+- hosts: manager-leader
+  remote_user: root
+  gather_facts: yes
+
+  roles:
+
+    - role: network
+      state: present
+      name: traefik
+      driver: overlay
+
+
+- hosts: manager-leader
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: capturing stacks
+      local_action:
+        module: command
+        _raw_params: ls /stacks
+      changed_when: false
+      when: deploy_stack is not defined or deploy_stack | trim == ""
+      register: stack_list
+
+    - name: defining stack list fact
+      set_fact:
+        stack_list: '{{ stack_list.stdout_lines }}'
+      when: stack_list.stdout_lines is defined
+
+    - name: defining single stack list fact
+      set_fact:
+        stack_list:
+          - '{{ deploy_stack }}'
+      when: deploy_stack is defined and deploy_stack | trim != ""
+
+    - name: load stack config
+      local_action:
+        module: include_vars
+        dir: '/stacks/{{ item }}'
+        files_matching: 'config.yml'
+      with_items: '{{ stack_list }}'
+      register: stack_items
+
+    - name: deploy stacks
+      include_role:
+        name: stack
+      vars:
+        stack: '{{ stack_item.item }}'
+        file: '/stacks/{{ stack_item.item }}/compose.yml'
+        config: '{{ stack_item.ansible_facts }}'
+      with_items: '{{ stack_items.results }}'
+      loop_control:
+        loop_var: stack_item

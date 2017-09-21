@@ -1,0 +1,7 @@
+services:
+  web:
+    image: nginx
+    deploy:
+      labels:
+        - "traefik.frontend.rule=Host:nginx.aesop.agency"
+        - "traefik.port=80"

@@ -1,0 +1,36 @@
+---
+
+- hosts: manager
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+  - name: tag node
+    digital_ocean_tag:
+      api_token: "{{ lookup('file', '/config/do_token') }}"
+      name: "{{ item }}"
+      resource_id: "{{ resource_id }}"
+      state: present
+    with_items:
+      - swarm-swarm-node
+      - swarm-swarm-manager
+    changed_when: False
+
+
+- hosts: worker
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+  - name: tag node
+    digital_ocean_tag:
+      api_token: "{{ lookup('file', '/config/do_token') }}"
+      name: "{{ item }}"
+      resource_id: "{{ resource_id }}"
+      state: present
+    with_items:
+      - swarm-swarm-node
+      - swarm-swarm-worker
+    changed_when: False

@@ -1,0 +1,18 @@
+---
+
+- name: capturing docker swarm networks
+  command: docker network ls
+  changed_when: false
+  register: docker_networks
+
+- name: creating docker swarm networks
+  command: "docker network create --driver {{ driver }} {{ name }}"
+  when: >
+    state|lower == "present" and
+    name not in docker_networks.stdout
+
+- name: removing docker swarm networks
+  command: "docker network rm {{ name }}"
+  when: >
+    state|lower == "absent" and
+    name in docker_networks.stdout

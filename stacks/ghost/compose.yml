@@ -1,0 +1,8 @@
+services:
+  web:
+    image: ghost
+    deploy:
+      labels:
+        - "traefik.frontend.rule=Host:ghost.aesop.agency"
+        - "traefik.backend.loadbalancer.sticky=true"
+        - "traefik.port=2368"

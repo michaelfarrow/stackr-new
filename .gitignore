@@ -1,0 +1,10 @@
+node_modules
+.terraform
+*.tfstate
+*.tfstate.*
+/.stackr
+/state
+/ssh
+/config/do_token
+/config/keys/*
+!/config/keys/.gitkeep

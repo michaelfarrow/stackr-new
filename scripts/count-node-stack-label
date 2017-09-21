@@ -1,0 +1,4 @@
+#!/bin/bash
+
+docker node inspect --format '{{ json .Spec.Labels }}' $1 | \
+  python -c "import sys, json; print sum(key == 'stack' and value == '$2' for key, value in json.load(sys.stdin).iteritems())"

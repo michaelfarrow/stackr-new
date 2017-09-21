@@ -1,0 +1,32 @@
+---
+
+- hosts: node
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: capturing public keys
+      local_action:
+        module: command
+        _raw_params: find /config/keys -maxdepth 1 -type f -not -path '*/\.*'
+      register: public_keys
+      changed_when: False
+
+    - name: defining public keys fact
+      set_fact:
+        public_keys: "{{ public_keys.stdout_lines + ['/root/.ssh/id_rsa.pub'] }}"
+
+    - name: capturing public key content
+      local_action:
+        module: command
+        _raw_params: 'cat "{{ item }}"'
+      with_items: "{{ public_keys }}"
+      register: public_keys_content
+      changed_when: False
+
+    - authorized_key:
+        state: present
+        user: root
+        exclusive: True
+        key: "{{ public_keys_content.results | map(attribute='stdout') | join('\n') }}"

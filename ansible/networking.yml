@@ -1,0 +1,23 @@
+---
+
+- hosts: node
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: enable firewall
+      ufw:
+        state: enabled
+
+    - name: open ports
+      ufw:
+        rule: allow
+        port: '{{ item }}'
+      with_items:
+        - 22
+        - 80
+        - 8080
+        - 2377
+        - 7946
+        - 4789

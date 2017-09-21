@@ -1,0 +1,7 @@
+services:
+  whoami:
+    image: emilevauge/whoami
+    deploy:
+      labels:
+        - "traefik.frontend.rule=Host:whoami.aesop.agency"
+        - "traefik.port=80"

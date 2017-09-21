@@ -1,0 +1,40 @@
+#!/usr/bin/env node
+
+require('app-module-path').addPath(__dirname)
+var program = require('lib/program')
+var package = require('package.json')
+var fs = require('fs-extra')
+
+console.clear()
+
+fs.ensureDirSync('.stackr')
+fs.ensureDirSync('.stackr/stacks')
+
+program
+  .version(package.version)
+  .command('init', 'initialise the docker swarm')
+  .command('manager', 'initialise the docker swarm managers')
+  .command('deploy', 'deploy a stack')
+  .command('ansible', 'ansible')
+  .command('key', 'manage ssh keys')
+  // .arguments('<cmd>')
+  // .action(function (cmd) {
+  //    command = cmd.trim().toLowerCase();
+  // })
+  .parse(process.argv)
+
+// if (typeof command === 'undefined') {
+//    console.error('no command given!')
+//    process.exit(1)
+// }
+//
+// try {
+//   var commandFn = require(['commands', command].join('/'))
+// } catch (e) {
+//   if (e.code === 'MODULE_NOT_FOUND') {
+//     console.error('command not found:', command)
+//   } else {
+//     console.error(e)
+//   }
+//   process.exit(1)
+// }

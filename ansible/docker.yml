@@ -1,0 +1,168 @@
+---
+
+- hosts: node
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: add docker apt key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: add docker apt repo
+      apt_repository:
+        repo: 'deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable'
+        state: present
+
+    - name: install docker
+      package:
+        name: docker-ce
+        state: latest
+
+    - name: ensuring docker engine is running
+      service:
+        name: docker
+        state: started
+
+    - name: checking swarm mode status
+      command: docker info
+      register: docker_info
+      changed_when: false
+
+
+- hosts: manager
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: defining docker swarm leader fact
+      set_fact:
+        manager_leader: '{{ groups.manager.index(inventory_hostname) == 0 }}'
+
+
+- hosts: manager-leader
+  remote_user: root
+  gather_facts: yes
+  # vars_files:
+  #   - /config/registry.yml
+
+  tasks:
+    #
+    # - name: log into private registry
+    #   docker_login:
+    #     registry: '{{ registry }}'
+    #     username: '{{ registry_username }}'
+    #     password: '{{ registry_password }}'
+
+    - name: init docker swarm mode
+      command: >
+        docker swarm init
+          --advertise-addr "{{ ansible_eth1['ipv4']['address'] }}:2377"
+      when: '"Swarm: inactive" in docker_info.stdout'
+
+    - name: capturing docker swarm worker join-token
+      command: docker swarm join-token -q worker
+      changed_when: false
+      register: swarm_worker_token
+
+    - name: capturing docker swarm manager join-token
+      command: docker swarm join-token -q manager
+      changed_when: false
+      register: swarm_manager_token
+
+    - name: defining docker swarm manager address
+      set_fact:
+        swarm_manager_ip: "{{ ansible_eth1['ipv4']['address'] }}"
+      changed_when: false
+
+
+- hosts: manager
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: joining docker swarm leaders to cluster
+      command: >
+        docker swarm join
+          --advertise-addr "{{ ansible_eth1['ipv4']['address'] }}:2377"
+          --token "{{ hostvars[groups.manager.0].swarm_manager_token.stdout }}"
+          "{{ hostvars[groups.manager.0].swarm_manager_ip }}:2377"
+      when: 'not manager_leader and "Swarm: active" not in docker_info.stdout and "Swarm: pending" not in docker_info.stdout'
+
+
+- hosts: worker
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: joining docker swarm workers to cluster
+      command: >
+        docker swarm join
+          --advertise-addr "{{ ansible_eth1['ipv4']['address'] }}:2377"
+          --token "{{ hostvars[groups.manager.0].swarm_worker_token.stdout }}"
+          "{{ hostvars[groups.manager.0].swarm_manager_ip }}:2377"
+      when: '"Swarm: active" not in docker_info.stdout and "Swarm: pending" not in docker_info.stdout'
+
+- hosts: manager:worker
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: capturing docker node id
+      command: docker info --format \{\{' '.Swarm.NodeID' '\}\}
+      changed_when: false
+      register: swarm_node_id
+
+    - name: defining docker swarm node id fact
+      set_fact:
+        swarm_node_id: '{{ swarm_node_id.stdout }}'
+
+
+- hosts: manager-leader
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: capturing docker swarm nodes
+      command: docker node ls -q
+      changed_when: false
+      register: docker_swarm_nodes
+
+    - name: defining docker swarm existing nodes
+      set_fact:
+        docker_swarm_nodes_existing: "{{ groups['node'] | map('extract', hostvars, 'swarm_node_id') | list }}"
+
+    - name: removing down nodes
+      command: 'docker node rm {{ item }}'
+      with_items: '{{ docker_swarm_nodes.stdout_lines }}'
+      when: 'item is defined and "{{ item }}" not in docker_swarm_nodes_existing'
+
+
+- hosts: worker
+  remote_user: root
+  gather_facts: yes
+
+  tasks:
+
+    - name: capturing node stack label
+      command: docker node inspect --format \{\{' '.Spec.Labels.stack' '\}\} '{{ swarm_node_id }}'
+      changed_when: false
+      register: docker_swarm_node_stack_label
+      delegate_to: '{{ groups["manager-leader"].0}}'
+
+    - name: removing node stack label
+      command: docker node update --label-rm Stack '{{ swarm_node_id }}'
+      when: 'stack is not defined or (stack is defined and docker_swarm_node_stack_label.stdout != "<no value>" and docker_swarm_node_stack_label.stdout != "{{ stack }}")'
+      delegate_to: '{{ groups["manager-leader"].0}}'
+
+    - name: adding node stack label
+      command: docker node update --label-add stack='{{ stack }}' '{{ swarm_node_id }}'
+      when: 'stack is defined and docker_swarm_node_stack_label.stdout != "{{ stack }}"'
+      delegate_to: '{{ groups["manager-leader"].0}}'

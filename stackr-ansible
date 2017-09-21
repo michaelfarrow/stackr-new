@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+
+require('app-module-path').addPath(__dirname)
+var program = require('lib/program')
+var commands = require('lib/commands')
+var ansible = require('lib/ansible')
+var async = require('async')
+
+
+program
+  .arguments('<playbook>')
+  .action(function (book) {
+     playbook = book;
+  })
+  .parse(process.argv)
+
+if (typeof playbook === 'undefined') {
+  console.error('please specify playbook')
+  process.exit(1)
+}
+
+commands([
+  ['ansible', playbook]
+])

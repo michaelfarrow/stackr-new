@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+
+require('app-module-path').addPath(__dirname)
+var program = require('lib/program')
+var _ = require('lodash')
+var fs = require('fs-extra')
+var commands = require('lib/commands')
+
+program
+  .arguments('<name> <key>')
+  .parse(process.argv)
+
+if (program.args.length < 2) {
+  program.exitWithError('please supply name and key')
+}
+
+var name = program.args.shift()
+var key = program.args.join(' ')
+
+var path = 'config/keys/' + name
+
+// if (fs.pathExistsSync(path)) {
+//   program.exitWithError('key "' + name + '" already exists')
+// }
+
+fs.writeFileSync(path, key)
+console.log('key "' + name + '" added')
+
+commands([
+  ['init', null],
+  ['ansible', 'ssh']
+])
