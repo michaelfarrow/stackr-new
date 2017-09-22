@@ -1,0 +1,28 @@
+---
+
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  tasks:
+
+    - name: ensure ansible ssh key
+      command: ssh-keygen -q -t rsa -N '' -f /root/.ssh/id_rsa
+      args:
+        creates: /root/.ssh/id_rsa
+
+    - name: ensure digitalocean ansible ssh key
+      digital_ocean_sshkey:
+        name: ansible
+        oauth_token: '{{ lookup("file", "/config/do_token") }}'
+        ssh_pub_key: '{{ lookup("file", "/root/.ssh/id_rsa.pub") }}'
+      register: ansible_ssh_key
+
+    - name: ensure digitalocean key
+      digital_ocean_sshkey:
+        name: '{{ item | basename }}'
+        oauth_token: '{{ lookup("file", "/config/do_token") }}'
+        ssh_pub_key: '{{ lookup("file", item) }}'
+      register: ssh_keys
+      with_fileglob:
+        - /config/keys/*

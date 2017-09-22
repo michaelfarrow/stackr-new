@@ -41,7 +41,7 @@
       local_action:
         module: include_vars
         dir: '/stacks/{{ item }}'
-        files_matching: 'config.yml'
+        files_matching: config.yml
       with_items: '{{ stack_list }}'
       register: stack_items
 

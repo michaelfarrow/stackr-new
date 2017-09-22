@@ -126,22 +126,22 @@ async.series([
   processComposeFile,
   function(callback) {
     commands([
-      // ['terraform.apply', 'worker', {
-      //   state: '/state/worker-' + program.stack + '.tfstate',
-      //   var: [
-      //     'do_token=' + token,
-      //     'key_fingerprint=' + keyFingerprint,
-      //     'stack=' + program.stack,
-      //     'worker_count=' + program.count,
-      //     'load_balancer=' + (program.loadbalancer ? '1' : '0')
-      //   ]
-      // }],
-      // 'hosts.update',
-      // ['ansible', 'setup'],
-      // ['ansible', 'tag'],
-      // ['ansible', 'networking'],
-      // ['ansible', 'ssh'],
-      // ['ansible', 'docker'],
+      ['terraform.apply', 'worker', {
+        state: '/state/worker-' + program.stack + '.tfstate',
+        var: [
+          'do_token=' + token,
+          'key_fingerprint=' + keyFingerprint,
+          'stack=' + program.stack,
+          'worker_count=' + program.count,
+          'load_balancer=' + (program.loadbalancer ? '1' : '0')
+        ]
+      }],
+      'hosts.update',
+      ['ansible', 'setup'],
+      ['ansible', 'tag'],
+      ['ansible', 'networking'],
+      ['ansible', 'ssh'],
+      ['ansible', 'docker'],
       ['ansible', 'stacks', ['-e', 'deploy_stack=' + program.stack]],
       // function(callback) {
       //   console.log('here')
