@@ -6,6 +6,23 @@
 
   tasks:
 
+    - name: ensure roles
+      command: 'ansible-galaxy install {{ item }}'
+      args:
+        creates: '/roles/kamaln7.swapfile'
+      with_items:
+        - kamaln7.swapfile
+
+    - name: ensure do_key file
+      copy:
+        content: '{{ do_token }}'
+        dest: /config/do_token
+      when: do_token is defined
+
+    - name: set do_token fact
+      set_fact:
+        do_token: '{{ lookup("file", "/config/do_token") }}'
+
     - name: ensure ansible ssh key
       command: ssh-keygen -q -t rsa -N '' -f /root/.ssh/id_rsa
       args:
@@ -14,15 +31,33 @@
     - name: ensure digitalocean ansible ssh key
       digital_ocean_sshkey:
         name: ansible
-        oauth_token: '{{ lookup("file", "/config/do_token") }}'
+        oauth_token: '{{ do_token }}'
         ssh_pub_key: '{{ lookup("file", "/root/.ssh/id_rsa.pub") }}'
       register: ansible_ssh_key
 
     - name: ensure digitalocean key
       digital_ocean_sshkey:
         name: '{{ item | basename }}'
-        oauth_token: '{{ lookup("file", "/config/do_token") }}'
+        oauth_token: '{{ do_token }}'
         ssh_pub_key: '{{ lookup("file", item) }}'
       register: ssh_keys
       with_fileglob:
         - /config/keys/*
+
+    - name: ensure key_ids file
+      copy:
+        content: "{{ ssh_keys.results | map(attribute='data.ssh_key.id') | list | join('\n') }}"
+        dest: /config/key_ids
+
+    - name: create docker swarm manager nodes
+      digital_ocean:
+        command: droplet
+        name: test
+        api_token: '{{ do_token }}'
+        size_id: 512mb
+        region_id: lon1
+        image_id: ubuntu-16-04-x64
+        wait_timeout: 500
+        unique_name: yes
+        private_networking: yes
+      register: droplet

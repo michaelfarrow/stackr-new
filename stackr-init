@@ -2,11 +2,14 @@
 
 require('app-module-path').addPath(__dirname)
 var program = require('lib/program')
-var command = require('lib/commands/init')
-
+var commands = require('lib/commands')
 
 program
   .option('-t, --token [token]', 'digitalocean api token')
   .parse(process.argv)
 
-command(program.token)
+var args = program.token ? ['-e', 'do_token=' + program.token] : []
+
+commands([
+  ['ansible', 'init', args]
+])

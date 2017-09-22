@@ -5,6 +5,7 @@ node_modules
 /.stackr
 /state
 /ssh
-/config/do_token
+/config/*
 /config/keys/*
 !/config/keys/.gitkeep
+/ansible/_roles
