@@ -1,0 +1,20 @@
+---
+
+- name: stat config do_token file
+  stat:
+    path: /config/do_token
+  register: do_token_stat
+
+- fail:
+    msg: please supply do_token var
+  when: do_token is not defined and not do_token_stat.stat.exists
+
+- name: ensure do_key file
+  copy:
+    content: '{{ do_token }}'
+    dest: /config/do_token
+  when: do_token is defined
+
+- name: set do_token fact
+  set_fact:
+    do_token: '{{ lookup("file", "/config/do_token") }}'

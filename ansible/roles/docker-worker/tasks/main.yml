@@ -1,0 +1,14 @@
+---
+
+- name: checking swarm mode status
+  command: docker info
+  register: docker_info
+  changed_when: false
+
+- name: joining docker swarm worker to cluster
+  command: >
+    docker swarm join
+      --advertise-addr "{{ ansible_eth1['ipv4']['address'] }}:2377"
+      --token '{{ lookup("file", "/config/swarm_token_worker") }}'
+      '{{ lookup("file", "/config/swarm_manager_ip") }}:2377'
+  when: '"Swarm: active" not in docker_info.stdout and "Swarm: pending" not in docker_info.stdout'

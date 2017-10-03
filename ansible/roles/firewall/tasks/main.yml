@@ -1,0 +1,25 @@
+---
+
+- name: enable firewall
+  ufw:
+    state: enabled
+
+- name: firewall ports
+  ufw:
+    rule: allow
+    port: '{{ item }}'
+    proto: '{{ proto }}'
+    delete: '{{ delete }}'
+  when: interface is not defined
+  with_items: '{{ ports }}'
+
+- name: firewall interface ports
+  ufw:
+    rule: allow
+    port: '{{ item }}'
+    proto: '{{ proto }}'
+    interface: '{{ interface }}'
+    direction: '{{ direction }}'
+    delete: '{{ delete }}'
+  when: interface is defined
+  with_items: '{{ ports }}'

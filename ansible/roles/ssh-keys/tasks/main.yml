@@ -1,0 +1,40 @@
+---
+
+- name: ensure ansible ssh key
+  command: ssh-keygen -q -t rsa -N '' -f /root/.ssh/id_rsa
+  args:
+    creates: /root/.ssh/id_rsa
+  delegate_to: localhost
+
+- name: defining ssh_keys_ansible_data fact
+  set_fact:
+    ssh_keys_ansible_data:
+      - name: ansible
+        path: /root/.ssh/id_rsa.pub
+
+- name: ensure public ssh key data
+  set_fact:
+    ssh_key_public_data:
+      name: '{{ item | basename }}'
+      path: '{{ item }}'
+  register: ssh_keys_public_data
+  with_fileglob:
+    - /keys/*
+
+- name: defining ssh_keys_public_data fact
+  set_fact:
+    ssh_keys_public_data: '{{ ssh_keys_public_data.results | map(attribute="ansible_facts.ssh_key_public_data") | list }}'
+
+- name: defining ssh_keys_data fact
+  set_fact:
+    ssh_keys_data: '{{ ssh_keys_ansible_data + ssh_keys_public_data }}'
+
+- name: get ssh keys content
+  set_fact:
+    ssh_key_content: '{{ lookup("file", item.path) }}'
+  with_items: '{{ ssh_keys_data }}'
+  register: ssh_keys_content
+
+- name: defining ssh_keys_content fact
+  set_fact:
+    ssh_keys_content: '{{ ssh_keys_content.results | map(attribute="ansible_facts.ssh_key_content") | list }}'

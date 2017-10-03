@@ -1,11 +1,5 @@
 node_modules
-.terraform
-*.tfstate
-*.tfstate.*
 /.stackr
-/state
-/ssh
-/config/*
-/config/keys/*
-!/config/keys/.gitkeep
-/ansible/_roles
+/keys/*
+!/keys/.gitkeep
+.DS_Store

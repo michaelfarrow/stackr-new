@@ -1,0 +1,7 @@
+---
+
+- name: ensure roles
+  command: 'ansible-galaxy install {{ item }}'
+  args:
+    creates: '/roles/{{ item }}'
+  with_items: '{{ packages }}'

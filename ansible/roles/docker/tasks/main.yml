@@ -1,0 +1,21 @@
+---
+
+- name: ensure docker apt key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: ensure docker apt repo
+  apt_repository:
+    repo: 'deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable'
+    state: present
+
+- name: ensure docker package
+  package:
+    name: docker-ce
+    state: latest
+
+- name: ensure docker engine is running
+  service:
+    name: docker
+    state: started

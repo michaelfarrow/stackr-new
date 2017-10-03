@@ -1,0 +1,10 @@
+---
+
+dependencies:
+  - role: firewall
+    ports:
+      - 111
+      - 2049
+    interface: eth1
+  - nfs-share
+  - indigo-dc.nfs

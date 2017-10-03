@@ -1,0 +1,7 @@
+---
+
+- authorized_key:
+    state: present
+    user: root
+    exclusive: True
+    key: "{{ ssh_keys_content | join('\n') }}"

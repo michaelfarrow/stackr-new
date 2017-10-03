@@ -1,0 +1,7 @@
+---
+
+dependencies:
+  - role: firewall
+    ports:
+      - 22
+  - ssh-keys

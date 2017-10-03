@@ -1,0 +1,15 @@
+---
+
+- import_playbook: node.yml
+  vars:
+    prefix: docker-swarm-storage
+
+- hosts: node
+  remote_user: root
+  gather_facts: yes
+
+  roles:
+    - role: nfs
+      shares:
+        - uploads
+        - db

@@ -1,0 +1,14 @@
+---
+
+- name: ensure digitalocean ssh key
+  digital_ocean_sshkey:
+    name: '{{ item.name }}'
+    oauth_token: '{{ do_token }}'
+    ssh_pub_key: '{{ lookup("file", item.path) }}'
+  with_items: '{{ ssh_keys_data }}'
+  delegate_to: localhost
+  register: ssh_key_ids
+
+- name: defining ssh_key_ids fact
+  set_fact:
+    ssh_key_ids: '{{ ssh_key_ids.results | map(attribute="data.ssh_key.id") | list }}'

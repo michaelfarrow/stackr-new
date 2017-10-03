@@ -1,0 +1,24 @@
+---
+
+- name: ensure storage parent directory
+  file:
+    path: /storage
+    state: directory
+
+- name: ensure storage directory
+  file:
+    path: '/storage/{{ item }}'
+    state: directory
+  with_items: '{{ shares }}'
+
+- name: defining nfs_export fact
+  set_fact:
+    nfs_export:
+      path: '/storage/{{ item }}'
+      export: '*(fsid=0,rw,async,no_root_squash,no_subtree_check,insecure)'
+  with_items: '{{ shares }}'
+  register: nfs_exports
+
+- name: defining nfs_exports fact
+  set_fact:
+    nfs_exports: '{{ nfs_exports.results | map(attribute="ansible_facts.nfs_export") | list }}'

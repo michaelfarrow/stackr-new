@@ -1,0 +1,150 @@
+---
+
+- name: ensure node
+  digital_ocean:
+    api_token: '{{ do_token }}'
+    command: droplet
+    name: '{{ [prefix, "%02d"] | join("-") | format(item | int) }}'
+    state: present
+    unique_name: yes
+    size_id: 512mb
+    region_id: lon1
+    image_id: ubuntu-16-04-x64
+    private_networking: yes
+    ipv6: no
+    backups_enabled: no
+    ssh_key_ids: '{{ ssh_key_ids }}'
+    wait: yes
+    wait_timeout: 500
+  with_sequence: 'count={{ count | int }}'
+  register: do_nodes_data
+
+- name: defining node_ip_addresses fact
+  set_fact:
+    node_ip_addresses: '{{ do_nodes_data.results | map(attribute="droplet.ip_address") | list }}'
+
+- name: defining node_hostnames fact
+  set_fact:
+    node_hostnames: '{{ do_nodes_data.results | map(attribute="droplet.name") | list }}'
+
+- name: add node to node inventory
+  add_host:
+    name: '{{ item }}'
+    group: node
+  changed_when: False
+  with_items: '{{ node_ip_addresses }}'
+
+- name: add node to group inventory
+  add_host:
+    name: '{{ item }}'
+    group: '{{ prefix }}'
+  changed_when: False
+  with_items: '{{ node_ip_addresses }}'
+
+- name: add node to individual inventory
+  add_host:
+    name: '{{ item.0 }}'
+    group: '{{ item.1 }}'
+  changed_when: False
+  with_together:
+    - '{{ node_ip_addresses }}'
+    - '{{ node_hostnames }}'
+
+# "%0", node_pad ,"d"
+#
+# - name: register node hostnames
+#   set_fact:
+#     node_hostname: '{{ (node_single | bool) | ternary(node_prefix, [node_prefix, node_number_format] | join("-") | format(item | int)) }}'
+#   with_sequence: count='{{ node_count_corrected }}'
+#   register: node_hostnames
+#
+# - name: set node hostnames fact
+#   set_fact:
+#     node_hostnames: "{{ node_hostnames.results | map(attribute='ansible_facts.node_hostname') | list }}"
+#
+# - name: ensure nodes
+#   digital_ocean:
+#     api_token: '{{ node_do_token }}'
+#     command: droplet
+#     name: '{{ item }}'
+#     state: present
+#     unique_name: yes
+#     wait: yes
+#     wait_timeout: 500
+#   when: item not in node_hostnames
+#   with_items: '{{ node_existing }}'
+#   register: nodes_to_delete_info
+#
+# - name: filter node info
+#   set_fact:
+#     nodes_to_delete_ids: '{{ nodes_to_delete_info.results | selectattr("skipped", "undefined") | map(attribute="droplet.id") | list }}'
+#
+# - name: remove tag
+#   digital_ocean_tag:
+#     api_token: '{{ node_do_token }}'
+#     name: docker-swarm-node
+#     resource_id: '{{ item }}'
+#     state: absent
+#   with_items: '{{ nodes_to_delete_ids }}'
+#
+# - pause:
+#     seconds: 10
+#   when: nodes_to_delete_ids | length > 0
+#
+# - name: leaving docker swarm
+#   shell: 'docker node demote {{ item }}; docker swarm leave'
+#   failed_when: false
+#   delegate_to: '{{ groups[item][0] }}'
+#   when: item not in node_hostnames and groups[item][0] is defined
+#   with_items: '{{ node_existing }}'
+#
+# - name: removing node from swarm
+#   shell: docker node rm -f '{{ item }}'
+#   failed_when: false
+#   delegate_to: '{{ groups[["docker-swarm-manager", "%02d"] | join("-") | format(1)][0] }}'
+#   when: item not in node_hostnames and groups[["docker-swarm-manager", "%02d"] | join("-") | format(1)][0] is defined
+#   with_items: '{{ node_existing }}'
+#
+# - name: remove nodes
+#   digital_ocean:
+#     api_token: '{{ node_do_token }}'
+#     command: droplet
+#     name: '{{ item }}'
+#     state: absent
+#     unique_name: yes
+#     wait: yes
+#     wait_timeout: 500
+#   when: item not in node_hostnames
+#   with_items: '{{ node_existing }}'
+#   register: nodes_removed
+#
+# - name: add nodes
+#   digital_ocean:
+#     api_token: '{{ node_do_token }}'
+#     command: droplet
+#     name: '{{ item }}'
+#     state: present
+#     unique_name: yes
+#     size_id: 512mb
+#     region_id: lon1
+#     image_id: ubuntu-16-04-x64
+#     private_networking: yes
+#     ipv6: no
+#     backups_enabled: no
+#     ssh_key_ids: '{{ node_ssh_keys }}'
+#     wait: yes
+#     wait_timeout: 500
+#   with_items: '{{ node_hostnames }}'
+#   register: nodes_added
+#
+# - name: filter node added info
+#   set_fact:
+#     nodes_added_ids: '{{ nodes_added.results | selectattr("skipped", "undefined") | map(attribute="droplet.id") | list }}'
+#
+# - name: add tag
+#   digital_ocean_tag:
+#     api_token: '{{ node_do_token }}'
+#     name: docker-swarm-node
+#     resource_id: '{{ item }}'
+#     state: present
+#   with_items: '{{ nodes_added_ids }}'

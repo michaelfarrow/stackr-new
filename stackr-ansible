@@ -20,5 +20,7 @@ if (typeof playbook === 'undefined') {
 }
 
 commands([
-  ['ansible', playbook]
+  ['ansible', playbook, {
+    rawArgs: program.rawArgs.slice(3)
+  }]
 ])

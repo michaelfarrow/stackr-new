@@ -1,0 +1,22 @@
+---
+
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  tasks:
+    - fail:
+        msg: please supply stack var
+      when: stack is not defined
+
+- import_playbook: node.yml
+  vars:
+    prefix: 'docker-swarm-worker-{{ stack }}'
+
+- hosts: node
+  remote_user: root
+  gather_facts: yes
+
+  roles:
+    - docker
+    - docker-worker
